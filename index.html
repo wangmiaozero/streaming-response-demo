@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>真正的流式数据传输演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .progress-container {
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .output-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 400px;
+            border: 2px solid #e9ecef;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .output-title {
+            font-size: 1.3em;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .clear-btn {
+            padding: 6px 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .clear-btn:hover {
+            background: #5a6268;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #007bff;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.success {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+
+        .message.error {
+            border-left-color: #dc3545;
+            background: #fff8f8;
+        }
+
+        .message.info {
+            border-left-color: #17a2b8;
+            background: #f8feff;
+        }
+
+        .message.streaming {
+            border-left-color: #ffc107;
+            background: #fffef8;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .message-time {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .message-content {
+            color: #555;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .streaming-content {
+            position: relative;
+        }
+
+        .streaming-content::after {
+            content: '▊';
+            color: #667eea;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.running {
+            background: #28a745;
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.stopped {
+            background: #dc3545;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #e3f2fd;
+            border-radius: 10px;
+            color: #1976d2;
+            font-style: italic;
+        }
+
+        .typing-indicator.active {
+            display: block;
+        }
+
+        .typing-indicator::before {
+            content: '💬 ';
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+            }
+            
+            .control-group {
+                min-width: auto;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 真正的流式数据传输演示</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <h3>GET 请求 (逐字符流)</h3>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="startGetStream()">开始GET流式请求</button>
+                    <button class="btn-danger" onclick="stopStream()">停止请求</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>POST 请求 (逐字符流)</h3>
+                <div class="input-group">
+                    <label for="postMessage">消息内容：</label>
+                    <input type="text" id="postMessage" placeholder="输入要发送的消息" value="Hello, 这是一个测试消息">
+                </div>
+                <div class="input-group">
+                    <label for="requestId">请求ID：</label>
+                    <input type="text" id="requestId" placeholder="请求唯一标识" value="req-001">
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="startPostStream()">开始POST流式请求</button>
+                    <button class="btn-warning" onclick="clearOutput()">清空输出</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">准备开始...</div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            正在输入...
+        </div>
+
+        <div class="output-container">
+            <div class="output-header">
+                <div class="output-title">
+                    <span class="status-indicator stopped" id="statusIndicator"></span>
+                    实时流式输出
+                </div>
+                <button class="clear-btn" onclick="clearOutput()">清空</button>
+            </div>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let currentMessageDiv = null;
+        let currentContentDiv = null;
+        let isStreaming = false;
+
+        function updateProgress(progress) {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            progressContainer.style.display = 'block';
+            progressFill.style.width = progress + '%';
+            progressText.textContent = `进度: ${progress}%`;
+        }
+
+        function setStatus(isRunning) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const typingIndicator = document.getElementById('typingIndicator');
+            
+            statusIndicator.className = `status-indicator ${isRunning ? 'running' : 'stopped'}`;
+            
+            if (isRunning) {
+                typingIndicator.classList.add('active');
+            } else {
+                typingIndicator.classList.remove('active');
+            }
+        }
+
+        function createMessageDiv(title, type = 'info') {
+            const outputDiv = document.getElementById('output');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const timestamp = new Date().toLocaleString();
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="message-title">${title}</div>
+                    <div class="message-time">${timestamp}</div>
+                </div>
+                <div class="message-content"></div>
+            `;
+            
+            outputDiv.appendChild(messageDiv);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+            
+            return messageDiv.querySelector('.message-content');
+        }
+
+        function addCompleteMessage(data, type = 'info') {
+            const outputDiv = document.getElementById('output');
+            const timestamp = new Date(data.timestamp || Date.now()).toLocaleString();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="message-title">${data.title || '未知标题'}</div>
+                    <div class="message-time">${timestamp}</div>
+                </div>
+                <div class="message-content">${data.content || '无内容'}</div>
+            `;
+            
+            outputDiv.appendChild(messageDiv);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        function startGetStream() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            setStatus(true);
+            clearOutput();
+
+            eventSource = new EventSource('http://localhost:3000/stream');
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('收到数据:', data);
+                    
+                    if (data.progress) {
+                        updateProgress(data.progress);
+                    }
+                    
+                    switch(data.type) {
+                        case 'start':
+                            addCompleteMessage(data.data, 'info');
+                            break;
+                            
+                        case 'title':
+                            // 创建新的消息容器
+                            currentContentDiv = createMessageDiv(data.data.title, 'streaming');
+                            currentContentDiv.className += ' streaming-content';
+                            break;
+                            
+                        case 'content':
+                            // 逐字符添加内容
+                            if (currentContentDiv) {
+                                currentContentDiv.textContent += data.data.content;
+                            }
+                            break;
+                            
+                        case 'message_end':
+                            // 当前消息结束，移除闪烁光标
+                            if (currentContentDiv) {
+                                currentContentDiv.className = currentContentDiv.className.replace(' streaming-content', '');
+                                currentContentDiv.textContent += '\n';
+                            }
+                            break;
+                            
+                        case 'end':
+                            setStatus(false);
+                            addCompleteMessage(data.data, 'success');
+                            eventSource.close();
+                            eventSource = null;
+                            break;
+                    }
+                } catch (e) {
+                    console.error('解析数据失败:', e);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('EventSource错误:', event);
+                setStatus(false);
+                addCompleteMessage({ title: '连接错误', content: '与服务器的连接出现问题' }, 'error');
+                eventSource.close();
+                eventSource = null;
+            };
+        }
+
+        function startPostStream() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            const messageInput = document.getElementById('postMessage');
+            const requestIdInput = document.getElementById('requestId');
+            
+            const postData = {
+                message: messageInput.value || '测试消息',
+                id: requestIdInput.value || 'req-' + Date.now(),
+                timestamp: new Date().toISOString()
+            };
+
+            setStatus(true);
+            clearOutput();
+
+            // 先发送POST请求
+            fetch('http://localhost:3000/stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(postData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            setStatus(false);
+                            return;
+                        }
+                        
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split('\n');
+                        
+                        lines.forEach(line => {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.substring(6));
+                                    console.log('收到POST数据:', data);
+                                    
+                                    if (data.progress) {
+                                        updateProgress(data.progress);
+                                    }
+                                    
+                                    switch(data.type) {
+                                        case 'start':
+                                            addCompleteMessage(data.data, 'info');
+                                            currentContentDiv = createMessageDiv(data.data.title, 'streaming');
+                                            currentContentDiv.className += ' streaming-content';
+                                            break;
+                                            
+                                        case 'content':
+                                            if (currentContentDiv) {
+                                                currentContentDiv.textContent += data.data.content;
+                                            }
+                                            break;
+                                            
+                                        case 'end':
+                                            if (currentContentDiv) {
+                                                currentContentDiv.className = currentContentDiv.className.replace(' streaming-content', '');
+                                            }
+                                            setStatus(false);
+                                            addCompleteMessage(data.data, 'success');
+                                            break;
+                                    }
+                                } catch (e) {
+                                    console.error('解析POST数据失败:', e);
+                                }
+                            }
+                        });
+                        
+                        readStream();
+                    }).catch(err => {
+                        console.error('读取流失败:', err);
+                        setStatus(false);
+                        addCompleteMessage({ title: '读取错误', content: `错误: ${err.message}` }, 'error');
+                    });
+                }
+                
+                readStream();
+            })
+            .catch(err => {
+                console.error('POST请求失败:', err);
+                setStatus(false);
+                addCompleteMessage({ title: '请求失败', content: `错误: ${err.message}` }, 'error');
+            });
+        }
+
+        function stopStream() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            setStatus(false);
+            addCompleteMessage({ title: '请求已停止', content: '用户主动停止了请求' }, 'error');
+            console.log('已终止请求');
+        }
+
+        function clearOutput() {
+            const outputDiv = document.getElementById('output');
+            const progressContainer = document.getElementById('progressContainer');
+            outputDiv.innerHTML = '';
+            progressContainer.style.display = 'none';
+            currentMessageDiv = null;
+            currentContentDiv = null;
+            setStatus(false);
+        }
+
+        // 页面加载完成后的初始化
+        window.addEventListener('load', () => {
+            console.log('页面加载完成，真正的流式传输演示准备就绪');
+        });
+
+        // 页面关闭时清理资源
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+
+</html>
