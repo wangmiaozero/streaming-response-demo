@@ -472,7 +472,7 @@
             setStatus(true);
             clearOutput();
 
-            eventSource = new EventSource('http://localhost:3000/stream');
+            eventSource = new EventSource('http://192.168.15.25:3000/stream');
             
             eventSource.onmessage = function(event) {
                 try {
@@ -548,7 +548,7 @@
             clearOutput();
 
             // 先发送POST请求
-            fetch('http://localhost:3000/stream', {
+            fetch('http://192.168.15.25:3000/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

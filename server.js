@@ -139,29 +139,50 @@ const server = http.createServer((req, res) => {
     if (url === '/stream' && req.method === 'POST') {
         console.log('开始POST流式传输...');
         
+        // 声明interval变量用于清理
+        let interval = null;
+        
+        // 设置SSE响应头
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+        });
+        
+        // 处理客户端断开连接
+        req.on('close', () => {
+            console.log('POST客户端已断开连接');
+            if (interval) {
+                clearInterval(interval);
+            }
+        });
+
+        req.on('aborted', () => {
+            console.log('POST请求被中止');
+            if (interval) {
+                clearInterval(interval);
+            }
+        });
+        
         // 读取POST数据
         let body = '';
         req.on('data', chunk => {
+            console.log('收到数据块:', chunk.toString());
             body += chunk.toString();
         });
         
         req.on('end', () => {
+            console.log('POST数据接收完成, body:', body);
             let requestData = {};
             try {
                 requestData = JSON.parse(body);
             } catch (e) {
+                console.log('解析JSON失败:', e.message);
                 requestData = { message: '解析请求数据失败' };
             }
             
             console.log('收到POST数据:', requestData);
-            
-            // 设置SSE响应头
-            res.writeHead(200, {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': '*'
-            });
 
             // 基于POST数据生成响应内容
             const responseText = `您好！我收到了您的请求。您发送的消息是："${requestData.message || '无消息'}"，请求ID是：${requestData.id || 'unknown'}。
@@ -177,12 +198,6 @@ const server = http.createServer((req, res) => {
 感谢您的耐心等待！`;
 
             let charIndex = 0;
-            
-            // 处理客户端断开连接
-            req.on('close', () => {
-                console.log('POST客户端已断开连接');
-                clearInterval(interval);
-            });
 
             // 发送开始事件
             res.write(`data: ${JSON.stringify({
@@ -193,34 +208,42 @@ const server = http.createServer((req, res) => {
                 requestId: requestData.id || 'unknown'
             })}\n\n`);
 
-            // 流式传输响应
-            const interval = setInterval(() => {
-                if (charIndex >= responseText.length) {
-                    // 发送结束事件
+            console.log('开始事件已发送，准备启动流式传输...');
+
+            // 立即启动流式传输，使用setTimeout来确保异步执行
+            setTimeout(() => {
+                console.log('开始流式传输定时器...');
+                
+                // 流式传输响应
+                interval = setInterval(() => {
+                    console.log('流式传输tick, charIndex:', charIndex, 'total:', responseText.length);
+                    if (charIndex >= responseText.length) {
+                        // 发送结束事件
+                        res.write(`data: ${JSON.stringify({
+                            code: 0,
+                            type: 'end',
+                            data: { title: '处理完成', content: '您的请求已处理完成！' },
+                            timestamp: new Date().toISOString(),
+                            requestId: requestData.id || 'unknown'
+                        })}\n\n`);
+                        res.end();
+                        clearInterval(interval);
+                        console.log('POST流式传输完成');
+                        return;
+                    }
+
+                    const char = responseText[charIndex];
                     res.write(`data: ${JSON.stringify({
-                        code: 0,
-                        type: 'end',
-                        data: { title: '处理完成', content: '您的请求已处理完成！' },
+                        code: 1,
+                        type: 'content',
+                        data: { title: '实时响应', content: char },
                         timestamp: new Date().toISOString(),
+                        progress: Math.round((charIndex + 1) / responseText.length * 100),
                         requestId: requestData.id || 'unknown'
                     })}\n\n`);
-                    res.end();
-                    clearInterval(interval);
-                    console.log('POST流式传输完成');
-                    return;
-                }
-
-                const char = responseText[charIndex];
-                res.write(`data: ${JSON.stringify({
-                    code: 1,
-                    type: 'content',
-                    data: { title: '实时响应', content: char },
-                    timestamp: new Date().toISOString(),
-                    progress: Math.round((charIndex + 1) / responseText.length * 100),
-                    requestId: requestData.id || 'unknown'
-                })}\n\n`);
-                charIndex++;
-            }, 30); // 30ms间隔，稍快一些
+                    charIndex++;
+                }, 30); // 30ms间隔，稍快一些
+            }, 100); // 100ms后开始流式传输
         });
 
         return;
