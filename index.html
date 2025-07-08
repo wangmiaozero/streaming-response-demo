@@ -372,6 +372,20 @@
                     <button class="btn-warning" onclick="clearOutput()">清空输出</button>
                 </div>
             </div>
+            
+            <div class="control-group">
+                <h3>医疗总结接口 (GET)</h3>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="startMedicalSummary()">获取医疗总结</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>医疗总结接口 (POST)</h3>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="startMedicalSummaryPost()">生成医疗总结 (POST)</button>
+                </div>
+            </div>
         </div>
 
         <div class="progress-container" id="progressContainer">
@@ -472,7 +486,7 @@
             setStatus(true);
             clearOutput();
 
-            eventSource = new EventSource('http://192.168.15.25:3000/stream');
+            eventSource = new EventSource('http://localhost:3000/stream');
             
             eventSource.onmessage = function(event) {
                 try {
@@ -548,7 +562,7 @@
             clearOutput();
 
             // 先发送POST请求
-            fetch('http://192.168.15.25:3000/stream', {
+            fetch('http://localhost:3000/stream', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -646,6 +660,153 @@
             currentMessageDiv = null;
             currentContentDiv = null;
             setStatus(false);
+        }
+
+        function startMedicalSummary() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            setStatus(true);
+            clearOutput();
+
+            eventSource = new EventSource('http://localhost:3000/summary');
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('收到医疗总结数据:', data);
+                    
+                    if (data.data.messageType === 1) {
+                        if (data.data.title) {
+                            // 显示标题
+                            addCompleteMessage({ title: '医疗总结', content: data.data.title }, 'info');
+                            // 创建内容容器
+                            currentContentDiv = createMessageDiv('聊天记录总结', 'streaming');
+                            currentContentDiv.className += ' streaming-content';
+                        } else if (data.data.content !== undefined) {
+                            // 逐字符添加内容
+                            if (currentContentDiv) {
+                                if (data.data.content === '') {
+                                    // 空内容表示结束
+                                    currentContentDiv.className = currentContentDiv.className.replace(' streaming-content', '');
+                                    setStatus(false);
+                                    eventSource.close();
+                                    eventSource = null;
+                                } else {
+                                    currentContentDiv.textContent += data.data.content;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('解析医疗总结数据失败:', e);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('医疗总结EventSource错误:', event);
+                setStatus(false);
+                addCompleteMessage({ title: '连接错误', content: '与服务器的连接出现问题' }, 'error');
+                eventSource.close();
+                eventSource = null;
+            };
+        }
+
+        function startMedicalSummaryPost() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            setStatus(true);
+            clearOutput();
+
+            // 发送POST请求（不传参数）
+            fetch('http://localhost:3000/summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                // 处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            setStatus(false);
+                            return;
+                        }
+                        
+                        // 将新数据添加到缓冲区
+                        const chunk = decoder.decode(value, { stream: true });
+                        buffer += chunk;
+                        console.log('收到数据块:', chunk.length, '字符');
+                        
+                        // 处理缓冲区中的完整行
+                        const lines = buffer.split('\n');
+                        // 保留最后一个不完整的行
+                        buffer = lines.pop() || '';
+                        
+                        lines.forEach(line => {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.substring(6));
+                                    console.log('解析到数据:', data);
+                                    
+                                    if (data.data.messageType === 1) {
+                                        if (data.data.title) {
+                                            // 显示标题
+                                            addCompleteMessage({ title: '个性化医疗总结', content: data.data.title }, 'info');
+                                            // 创建内容容器
+                                            currentContentDiv = createMessageDiv('详细诊疗建议', 'streaming');
+                                            currentContentDiv.className += ' streaming-content';
+                                        } else if (data.data.content !== undefined) {
+                                            // 逐字符添加内容
+                                            if (currentContentDiv) {
+                                                if (data.data.content === '') {
+                                                    // 空内容表示结束
+                                                    currentContentDiv.className = currentContentDiv.className.replace(' streaming-content', '');
+                                                    setStatus(false);
+                                                    addCompleteMessage({ title: '总结完成', content: '个性化医疗总结生成完成' }, 'success');
+                                                } else {
+                                                    currentContentDiv.textContent += data.data.content;
+                                                    // 滚动到底部
+                                                    const outputDiv = document.getElementById('output');
+                                                    outputDiv.scrollTop = outputDiv.scrollHeight;
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('解析POST医疗总结数据失败:', e, '行内容:', line);
+                                }
+                            }
+                        });
+                        
+                        // 继续读取
+                        readStream();
+                    }).catch(err => {
+                        console.error('读取医疗总结流失败:', err);
+                        setStatus(false);
+                        addCompleteMessage({ title: '读取错误', content: `错误: ${err.message}` }, 'error');
+                    });
+                }
+                
+                readStream();
+            })
+            .catch(err => {
+                console.error('POST医疗总结请求失败:', err);
+                setStatus(false);
+                addCompleteMessage({ title: '请求失败', content: `错误: ${err.message}` }, 'error');
+            });
         }
 
         // 页面加载完成后的初始化
